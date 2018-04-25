@@ -1,14 +1,21 @@
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import jwblangley.BST.AvlBST;
 import jwblangley.BST.BinarySearchTree;
 import jwblangley.BST.Node;
 import org.junit.Test;
 
 public class AvlBSTTest {
+
+  //N.B invariant assertions are within the add and remove methods
+
+
+  private final int NUM_THREADS = 8;
 
   @Test
   public void toStringTest() {
@@ -30,23 +37,29 @@ public class AvlBSTTest {
     assert bst.add(5);
     assertEquals("(Node:5, L:null, R:null)", bst.toString());
     assertEquals(bst.size(), 1);
-    assert bst.add(3);
-    assertEquals("(Node:5, L:(Node:3, L:null, R:null), R:null)", bst.toString());
+    assert bst.add(2);
+    assertEquals("(Node:5, L:(Node:2, L:null, R:null), R:null)", bst.toString());
     assertEquals(bst.size(), 2);
     assert bst.add(7);
-    assertEquals("(Node:5, L:(Node:3, L:null, R:null), R:(Node:7, L:null, R:null))",
+    assertEquals("(Node:5, L:(Node:2, L:null, R:null), R:(Node:7, L:null, R:null))",
         bst.toString());
     assertEquals(bst.size(), 3);
     assert bst.add(4);
     assertEquals(
-        "(Node:5, L:(Node:3, L:null, R:(Node:4, L:null, R:null)), R:(Node:7, L:null, R:null))",
+        "(Node:5, L:(Node:2, L:null, R:(Node:4, L:null, R:null)), R:(Node:7, L:null, R:null))",
         bst.toString());
     assertEquals(bst.size(), 4);
     assertFalse(bst.add(4));
     assertEquals(
-        "(Node:5, L:(Node:3, L:null, R:(Node:4, L:null, R:null)), R:(Node:7, L:null, R:null))",
+        "(Node:5, L:(Node:2, L:null, R:(Node:4, L:null, R:null)), R:(Node:7, L:null, R:null))",
         bst.toString());
     assertEquals(bst.size(), 4);
+
+    assert bst.add(3);
+    assertEquals(
+        "(Node:5, L:(Node:3, L:(Node:2, L:null, R:null), R:(Node:4, L:null, R:null)), R:(Node:7, L:null, R:null))",
+        bst.toString());
+    assertEquals(bst.size(), 5);
 
     assert isSorted(bst);
     assertConsistentSize(bst);
@@ -94,11 +107,60 @@ public class AvlBSTTest {
     bst.add(6);
     bst.add(3);
     bst.add(5);
-    assert bst.remove(1);
+    assert bst.remove(4);
     assertEquals(bst.size(), 5);
     assertEquals(
-        "(Node:4, L:(Node:2, L:null, R:(Node:3, L:null, R:null)), R:(Node:6, L:(Node:5, L:null, R:null), R:null))",
+        "(Node:3, L:(Node:2, L:(Node:1, L:null, R:null), R:null), R:(Node:6, L:(Node:5, L:null, R:null), R:null))",
         bst.toString());
+    assert isSorted(bst);
+    assertConsistentSize(bst);
+  }
+
+  @Test
+  public void durabilityTest() {
+    BinarySearchTree<Integer> bst = new AvlBST<>();
+    Random rand = new Random();
+
+    for (int i = 0; i < 1000; i++) {
+      if (rand.nextBoolean()) {
+        bst.add(rand.nextInt(1000));
+      } else {
+        bst.remove(rand.nextInt(1000));
+      }
+    }
+  }
+
+  @Test(timeout = 10000)
+  public void threadSafeTest() {
+    BinarySearchTree<Integer> bst = new AvlBST<>();
+    Random rand = new Random();
+
+    Thread[] threads = new Thread[NUM_THREADS];
+    Arrays.setAll(threads, index ->
+        new Thread(() -> {
+          for (int i = 0; i < 100; i++) {
+            if (rand.nextBoolean()) {
+              bst.add(rand.nextInt(100));
+            } else {
+              bst.remove(rand.nextInt(100));
+            }
+            try {
+              Thread.sleep(50);
+            } catch (InterruptedException e) {
+              e.printStackTrace();
+            }
+          }
+        }));
+
+    Arrays.stream(threads).forEach(Thread::start);
+    Arrays.stream(threads).forEach(thread -> {
+      try {
+        thread.join();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    });
+
     assert isSorted(bst);
     assertConsistentSize(bst);
   }
